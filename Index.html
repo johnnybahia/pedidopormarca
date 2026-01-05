@@ -83,25 +83,6 @@
       100% { transform: rotate(360deg); }
     }
 
-    /* Botão de Exportação */
-    .btn-export {
-      background-color: var(--primary-color);
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 20px;
-      transition: background-color 0.3s;
-      box-shadow: var(--card-shadow);
-    }
-    .btn-export:hover {
-      background-color: #b71c1c;
-      transform: translateY(-2px);
-    }
-
     /* Console de Debug */
     .debug-console {
       background: #263238;
@@ -143,8 +124,6 @@
     </div>
 
     <div id="dashboard" style="display:none;">
-
-      <button class="btn-export" onclick="exportarCSV()">📥 Exportar CSV</button>
 
       <div class="filters-box">
         <div class="filter-group">
@@ -491,56 +470,6 @@
         opt.innerText = u;
         sel.appendChild(opt);
       });
-    }
-
-    // Exporta dados filtrados para CSV
-    function exportarCSV() {
-      if (!linhasFiltradas || linhasFiltradas.length === 0) {
-        alert("⚠️ Nenhum dado para exportar! Ajuste os filtros e tente novamente.");
-        return;
-      }
-
-      addDebugLog("📥 Exportando " + linhasFiltradas.length + " registros para CSV...");
-
-      // Cabeçalho do CSV
-      var csv = "Data,Arquivo,Cliente,Marca,Local Entrega,Quantidade,Unidade,Valor\n";
-
-      // Adiciona os dados
-      linhasFiltradas.forEach(function(row) {
-        // Escapa campos que contém vírgula ou aspas
-        var linha = row.map(function(campo) {
-          var valor = (campo || "").toString();
-          // Se contém vírgula ou aspas, envolve em aspas duplas
-          if (valor.indexOf(',') > -1 || valor.indexOf('"') > -1) {
-            valor = '"' + valor.replace(/"/g, '""') + '"';
-          }
-          return valor;
-        }).join(',');
-        csv += linha + "\n";
-      });
-
-      // Cria o Blob e faz o download
-      var blob = new Blob(["\uFEFF" + csv], {type: 'text/csv;charset=utf-8;'}); // \uFEFF é BOM para UTF-8
-      var url = window.URL.createObjectURL(blob);
-      var link = document.createElement('a');
-      link.href = url;
-
-      // Nome do arquivo com data/hora
-      var agora = new Date();
-      var timestamp = agora.getFullYear() +
-                     ("0" + (agora.getMonth() + 1)).slice(-2) +
-                     ("0" + agora.getDate()).slice(-2) + "_" +
-                     ("0" + agora.getHours()).slice(-2) +
-                     ("0" + agora.getMinutes()).slice(-2);
-
-      link.download = 'pedidos_marfim_' + timestamp + '.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      addDebugLog("✅ CSV exportado com sucesso!", "success");
-      alert("✅ Arquivo CSV baixado com sucesso!\n\n" + linhasFiltradas.length + " registros exportados.");
     }
   </script>
 </body>
