@@ -183,7 +183,7 @@
 
       <div class="filters-box">
         <div class="filter-group">
-          <label>📅 Mês/Ano Entrega</label>
+          <label>📅 Mês/Ano Pedido</label>
           <select id="selMes" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
         </div>
         <div class="filter-group">
@@ -226,13 +226,13 @@
         <table>
           <thead>
             <tr>
-              <th>Data Entrega</th>
+              <th>Data Pedido</th>
               <th>Data Recebimento</th>
               <th>Cliente</th>
               <th>Marca</th>
-              <th>Local</th>
+              <th>Local Entrega</th>
               <th>Qtd</th>
-              <th>Und</th>
+              <th>Unidade</th>
               <th>Valor (R$)</th>
             </tr>
           </thead>
@@ -317,14 +317,14 @@
       }
 
       // 3. Popula filtros iniciais com segurança
-      // Índices: 0=DataEntrega, 1=DataRecebimento, 2=Arquivo, 3=Cliente, 4=Marca, 5=Local
+      // Índices: 0=DataPedido, 1=DataRecebimento, 2=Arquivo, 3=Cliente, 4=Marca, 5=LocalEntrega
       try {
         addDebugLog("🔧 Populando filtros...");
-        popularSelect("selMes", 0);              // Data Entrega (Mês/Ano)
+        popularSelect("selMes", 0);              // Data Pedido (Mês/Ano)
         popularSelect("selDataRecebimento", 1);  // Data Recebimento
         popularSelect("selCliente", 3);          // Cliente
         popularSelect("selMarca", 4);            // Marca
-        popularSelect("selLocal", 5);            // Local
+        popularSelect("selLocal", 5);            // Local Entrega
         addDebugLog("✅ Filtros populados com sucesso", "success");
       } catch (e) {
         addDebugLog("Erro ao popular selects: " + e.message, "error");
@@ -378,7 +378,7 @@
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
-      addDebugLog("🔍 Aplicando filtros - Mês Entrega: " + fMes + ", Data Receb: " + fDataRecebimento + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
+      addDebugLog("🔍 Aplicando filtros - Mês Pedido: " + fMes + ", Data Receb: " + fDataRecebimento + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
 
       var totalValor = 0;
       var totalPares = 0;
@@ -395,7 +395,7 @@
             return; // Ignora linhas quebradas
           }
 
-          var mesAno = extrairMesAno(row[0]); // Data Entrega
+          var mesAno = extrairMesAno(row[0]); // Data Pedido
 
           // Aplica os 5 filtros
           if (fMes !== "Todos" && mesAno !== fMes) return;
@@ -562,11 +562,11 @@
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
-      if (fMes !== "Todos") filtros.push("Mês Entrega: " + fMes);
+      if (fMes !== "Todos") filtros.push("Mês Pedido: " + fMes);
       if (fDataRecebimento !== "Todos") filtros.push("Data Recebimento: " + fDataRecebimento);
       if (fCliente !== "Todos") filtros.push("Cliente: " + fCliente);
       if (fMarca !== "Todos") filtros.push("Marca: " + fMarca);
-      if (fLocal !== "Todos") filtros.push("Local: " + fLocal);
+      if (fLocal !== "Todos") filtros.push("Local Entrega: " + fLocal);
 
       document.getElementById("printFiltros").innerText = filtros.length > 0 ? filtros.join(" | ") : "Nenhum filtro aplicado (Todos os dados)";
       document.getElementById("printTotalRegistros").innerText = linhasFiltradas.length;

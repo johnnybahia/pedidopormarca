@@ -21,7 +21,7 @@ function doPost(e) {
     if (!sheet) {
       // Se não existir, cria e põe cabeçalho
       sheet = doc.insertSheet("Dados");
-      sheet.appendRow(["Data Entrega", "Data Recebimento", "Arquivo", "Cliente", "Marca", "Local", "Qtd", "Unidade", "Valor"]);
+      sheet.appendRow(["Data Pedido", "Data Recebimento", "Arquivo", "Cliente", "Marca", "Local Entrega", "Qtd", "Unidade", "Valor (R$)"]);
     }
 
     var json = JSON.parse(e.postData.contents);
@@ -41,8 +41,8 @@ function doPost(e) {
       var p = lista[i];
       if (arquivosExistentes.indexOf(p.arquivo) === -1) {
         novasLinhas.push([
-          p.dataEntrega || p.data,           // Data Entrega (mantém compatibilidade com p.data)
-          p.dataRecebimento || "",            // Data Recebimento (novo campo)
+          p.dataPedido || p.dataEntrega || p.data,  // Data Pedido (aceita vários formatos)
+          p.dataRecebimento || "",                   // Data Recebimento
           p.arquivo,
           p.cliente,
           p.marca,
@@ -95,15 +95,15 @@ function getDadosPlanilha() {
     // Formata os dados para garantir compatibilidade
     var dadosFormatados = dados.map(function(row) {
       return [
-        formatarData(row[0]),            // Data Entrega
+        formatarData(row[0]),            // Data Pedido
         formatarData(row[1]),            // Data Recebimento
         row[2] ? row[2].toString() : "", // Arquivo
         row[3] ? row[3].toString() : "", // Cliente
         row[4] ? row[4].toString() : "", // Marca
-        row[5] ? row[5].toString() : "", // Local
+        row[5] ? row[5].toString() : "", // Local Entrega
         formatarNumero(row[6]),          // Qtd
         row[7] ? row[7].toString() : "", // Unidade
-        formatarValor(row[8])            // Valor
+        formatarValor(row[8])            // Valor (R$)
       ];
     });
 
