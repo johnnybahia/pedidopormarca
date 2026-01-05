@@ -183,8 +183,12 @@
 
       <div class="filters-box">
         <div class="filter-group">
-          <label>📅 Mês/Ano Pedido</label>
-          <select id="selMes" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
+          <label>📅 Mês/Ano Entrega</label>
+          <select id="selMesEntrega" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
+        </div>
+        <div class="filter-group">
+          <label>📆 Data de Entrega</label>
+          <select id="selDataEntrega" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
         </div>
         <div class="filter-group">
           <label>📆 Data Recebimento</label>
@@ -226,7 +230,7 @@
         <table>
           <thead>
             <tr>
-              <th>Data Pedido</th>
+              <th>Data de Entrega</th>
               <th>Data Recebimento</th>
               <th>Cliente</th>
               <th>Marca</th>
@@ -317,11 +321,12 @@
       }
 
       // 3. Popula filtros iniciais com segurança
-      // Índices: 0=DataPedido, 1=DataRecebimento, 2=Arquivo, 3=Cliente, 4=Marca, 5=LocalEntrega
+      // Índices: 0=DataEntrega, 1=DataRecebimento, 2=Arquivo, 3=Cliente, 4=Marca, 5=LocalEntrega
       try {
         addDebugLog("🔧 Populando filtros...");
-        popularSelect("selMes", 0);              // Data Pedido (Mês/Ano)
-        popularSelect("selDataRecebimento", 1);  // Data Recebimento
+        popularSelect("selMesEntrega", 0);       // Data de Entrega (Mês/Ano)
+        popularSelectData("selDataEntrega", 0);  // Data de Entrega (completa)
+        popularSelectData("selDataRecebimento", 1);  // Data Recebimento
         popularSelect("selCliente", 3);          // Cliente
         popularSelect("selMarca", 4);            // Marca
         popularSelect("selLocal", 5);            // Local Entrega
@@ -372,13 +377,14 @@
 
     // Função Principal: Filtra dados e calcula Totais
     function aplicarFiltros() {
-      var fMes = document.getElementById("selMes").value;
+      var fMesEntrega = document.getElementById("selMesEntrega").value;
+      var fDataEntrega = document.getElementById("selDataEntrega").value;
       var fDataRecebimento = document.getElementById("selDataRecebimento").value;
       var fCliente = document.getElementById("selCliente").value;
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
-      addDebugLog("🔍 Aplicando filtros - Mês Pedido: " + fMes + ", Data Receb: " + fDataRecebimento + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
+      addDebugLog("🔍 Aplicando filtros - Mês Entrega: " + fMesEntrega + ", Data Entrega: " + fDataEntrega + ", Data Receb: " + fDataRecebimento + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
 
       var totalValor = 0;
       var totalPares = 0;
@@ -395,10 +401,18 @@
             return; // Ignora linhas quebradas
           }
 
-          var mesAno = extrairMesAno(row[0]); // Data Pedido
+          var mesAno = extrairMesAno(row[0]); // Data de Entrega
+          var qtd = limparNumero(row[6]);
 
-          // Aplica os 5 filtros
-          if (fMes !== "Todos" && mesAno !== fMes) return;
+          // ✅ FILTRO: Ignora linhas com quantidade 0
+          if (qtd === 0) {
+            linhasIgnoradas++;
+            return;
+          }
+
+          // Aplica os 6 filtros
+          if (fMesEntrega !== "Todos" && mesAno !== fMesEntrega) return;
+          if (fDataEntrega !== "Todos" && row[0] !== fDataEntrega) return; // Data de Entrega
           if (fDataRecebimento !== "Todos" && row[1] !== fDataRecebimento) return; // Data Recebimento
           if (fCliente !== "Todos" && row[3] !== fCliente) return;
           if (fMarca !== "Todos" && row[4] !== fMarca) return;
@@ -412,7 +426,6 @@
           totalValor += valorLimpo;
 
           // Soma Qtd (Separa Pares vs Metros) - índices 6 e 7
-          var qtd = limparNumero(row[6]);
           var und = (row[7] || "").toString().toUpperCase();
 
           if (und.includes("PAR")) {
@@ -513,13 +526,13 @@
       });
     }
 
-    // Preenche os selects (dropdowns)
+    // Preenche os selects (dropdowns) - para Mês/Ano
     function popularSelect(id, indexCol) {
       var sel = document.getElementById(id);
       if (!sel) return;
 
       var unicos = new Set();
-      
+
       if (dadosBrutos) {
         dadosBrutos.forEach(function(r) {
           if (!r) return;
@@ -528,8 +541,44 @@
           if (val && val.trim() !== "") unicos.add(val);
         });
       }
-      
+
       Array.from(unicos).sort().forEach(function(u) {
+        var opt = document.createElement("option");
+        opt.value = u;
+        opt.innerText = u;
+        sel.appendChild(opt);
+      });
+    }
+
+    // Preenche selects com datas completas (DD/MM/AAAA)
+    function popularSelectData(id, indexCol) {
+      var sel = document.getElementById(id);
+      if (!sel) return;
+
+      var unicos = new Set();
+
+      if (dadosBrutos) {
+        dadosBrutos.forEach(function(r) {
+          if (!r) return;
+          var val = r[indexCol];
+          if (val && val.toString().trim() !== "") {
+            unicos.add(val.toString().trim());
+          }
+        });
+      }
+
+      // Ordena as datas
+      Array.from(unicos).sort(function(a, b) {
+        // Converte DD/MM/AAAA para objeto Date para ordenar corretamente
+        var partsA = a.split('/');
+        var partsB = b.split('/');
+        if (partsA.length === 3 && partsB.length === 3) {
+          var dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
+          var dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
+          return dateB - dateA; // Ordem decrescente (mais recentes primeiro)
+        }
+        return 0;
+      }).forEach(function(u) {
         var opt = document.createElement("option");
         opt.value = u;
         opt.innerText = u;
@@ -556,13 +605,15 @@
 
       // Mostra filtros aplicados
       var filtros = [];
-      var fMes = document.getElementById("selMes").value;
+      var fMesEntrega = document.getElementById("selMesEntrega").value;
+      var fDataEntrega = document.getElementById("selDataEntrega").value;
       var fDataRecebimento = document.getElementById("selDataRecebimento").value;
       var fCliente = document.getElementById("selCliente").value;
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
-      if (fMes !== "Todos") filtros.push("Mês Pedido: " + fMes);
+      if (fMesEntrega !== "Todos") filtros.push("Mês Entrega: " + fMesEntrega);
+      if (fDataEntrega !== "Todos") filtros.push("Data de Entrega: " + fDataEntrega);
       if (fDataRecebimento !== "Todos") filtros.push("Data Recebimento: " + fDataRecebimento);
       if (fCliente !== "Todos") filtros.push("Cliente: " + fCliente);
       if (fMarca !== "Todos") filtros.push("Marca: " + fMarca);

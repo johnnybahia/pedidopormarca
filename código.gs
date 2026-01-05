@@ -21,7 +21,7 @@ function doPost(e) {
     if (!sheet) {
       // Se não existir, cria e põe cabeçalho
       sheet = doc.insertSheet("Dados");
-      sheet.appendRow(["Data Pedido", "Data Recebimento", "Arquivo", "Cliente", "Marca", "Local Entrega", "Qtd", "Unidade", "Valor (R$)"]);
+      sheet.appendRow(["Data de Entrega", "Data Recebimento", "Arquivo", "Cliente", "Marca", "Local Entrega", "Qtd", "Unidade", "Valor (R$)"]);
     }
 
     var json = JSON.parse(e.postData.contents);
@@ -41,7 +41,7 @@ function doPost(e) {
       var p = lista[i];
       if (arquivosExistentes.indexOf(p.arquivo) === -1) {
         novasLinhas.push([
-          p.dataPedido || p.dataEntrega || p.data,  // Data Pedido (aceita vários formatos)
+          p.dataEntrega || p.dataPedido || p.data,  // Data de Entrega (aceita vários formatos)
           p.dataRecebimento || "",                   // Data Recebimento
           p.arquivo,
           p.cliente,
@@ -95,7 +95,7 @@ function getDadosPlanilha() {
     // Formata os dados para garantir compatibilidade
     var dadosFormatados = dados.map(function(row) {
       return [
-        formatarData(row[0]),            // Data Pedido
+        formatarData(row[0]),            // Data de Entrega
         formatarData(row[1]),            // Data Recebimento
         row[2] ? row[2].toString() : "", // Arquivo
         row[3] ? row[3].toString() : "", // Cliente
