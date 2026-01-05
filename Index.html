@@ -183,8 +183,12 @@
 
       <div class="filters-box">
         <div class="filter-group">
-          <label>📅 Mês/Ano</label>
+          <label>📅 Mês/Ano Entrega</label>
           <select id="selMes" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
+        </div>
+        <div class="filter-group">
+          <label>📆 Data Recebimento</label>
+          <select id="selDataRecebimento" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
         </div>
         <div class="filter-group">
           <label>🏢 Cliente</label>
@@ -222,7 +226,8 @@
         <table>
           <thead>
             <tr>
-              <th>Data</th>
+              <th>Data Entrega</th>
+              <th>Data Recebimento</th>
               <th>Cliente</th>
               <th>Marca</th>
               <th>Local</th>
@@ -312,13 +317,14 @@
       }
 
       // 3. Popula filtros iniciais com segurança
-      // Índices: 0=Data, 2=Cliente, 3=Marca, 4=Local
+      // Índices: 0=DataEntrega, 1=DataRecebimento, 2=Arquivo, 3=Cliente, 4=Marca, 5=Local
       try {
         addDebugLog("🔧 Populando filtros...");
-        popularSelect("selMes", 0);
-        popularSelect("selCliente", 2);
-        popularSelect("selMarca", 3);
-        popularSelect("selLocal", 4);
+        popularSelect("selMes", 0);              // Data Entrega (Mês/Ano)
+        popularSelect("selDataRecebimento", 1);  // Data Recebimento
+        popularSelect("selCliente", 3);          // Cliente
+        popularSelect("selMarca", 4);            // Marca
+        popularSelect("selLocal", 5);            // Local
         addDebugLog("✅ Filtros populados com sucesso", "success");
       } catch (e) {
         addDebugLog("Erro ao popular selects: " + e.message, "error");
@@ -337,22 +343,22 @@
     function atualizarFunilCliente() {
       var clienteSelecionado = document.getElementById("selCliente").value;
       var selectMarca = document.getElementById("selMarca");
-      
+
       // Limpa e reseta
       selectMarca.innerHTML = '<option value="Todos">Todas</option>';
-      
+
       var marcasDisponiveis = new Set();
-      
+
       if (dadosBrutos && dadosBrutos.length > 0) {
         dadosBrutos.forEach(function(r) {
           if (!r) return; // Pula linha vazia
-          // Se Cliente for Todos ou bater com a linha
-          if (clienteSelecionado === "Todos" || r[2] === clienteSelecionado) {
-            if(r[3]) marcasDisponiveis.add(r[3]);
+          // Se Cliente for Todos ou bater com a linha (índice 3 = Cliente)
+          if (clienteSelecionado === "Todos" || r[3] === clienteSelecionado) {
+            if(r[4]) marcasDisponiveis.add(r[4]); // índice 4 = Marca
           }
         });
       }
-      
+
       // Ordena e adiciona ao select
       Array.from(marcasDisponiveis).sort().forEach(function(m) {
         var opt = document.createElement("option");
@@ -367,11 +373,12 @@
     // Função Principal: Filtra dados e calcula Totais
     function aplicarFiltros() {
       var fMes = document.getElementById("selMes").value;
+      var fDataRecebimento = document.getElementById("selDataRecebimento").value;
       var fCliente = document.getElementById("selCliente").value;
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
-      addDebugLog("🔍 Aplicando filtros - Mês: " + fMes + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
+      addDebugLog("🔍 Aplicando filtros - Mês Entrega: " + fMes + ", Data Receb: " + fDataRecebimento + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
 
       var totalValor = 0;
       var totalPares = 0;
@@ -383,29 +390,30 @@
         var linhasIgnoradas = 0;
 
         dadosBrutos.forEach(function(row) {
-          if (!row || row.length < 8) {
+          if (!row || row.length < 9) {
             linhasIgnoradas++;
             return; // Ignora linhas quebradas
           }
 
-          var mesAno = extrairMesAno(row[0]);
+          var mesAno = extrairMesAno(row[0]); // Data Entrega
 
-          // Aplica os 4 filtros
+          // Aplica os 5 filtros
           if (fMes !== "Todos" && mesAno !== fMes) return;
-          if (fCliente !== "Todos" && row[2] !== fCliente) return;
-          if (fMarca !== "Todos" && row[3] !== fMarca) return;
-          if (fLocal !== "Todos" && row[4] !== fLocal) return;
+          if (fDataRecebimento !== "Todos" && row[1] !== fDataRecebimento) return; // Data Recebimento
+          if (fCliente !== "Todos" && row[3] !== fCliente) return;
+          if (fMarca !== "Todos" && row[4] !== fMarca) return;
+          if (fLocal !== "Todos" && row[5] !== fLocal) return;
 
           linhasFiltradas.push(row);
           linhasProcessadas++;
 
-          // Soma Valor
-          var valorLimpo = limparNumero(row[7]);
+          // Soma Valor (índice 8)
+          var valorLimpo = limparNumero(row[8]);
           totalValor += valorLimpo;
 
-          // Soma Qtd (Separa Pares vs Metros)
-          var qtd = limparNumero(row[5]);
-          var und = (row[6] || "").toString().toUpperCase();
+          // Soma Qtd (Separa Pares vs Metros) - índices 6 e 7
+          var qtd = limparNumero(row[6]);
+          var und = (row[7] || "").toString().toUpperCase();
 
           if (und.includes("PAR")) {
             totalPares += qtd;
@@ -484,21 +492,22 @@
 
       dadosRecentes.forEach(function(r) {
         var tr = document.createElement("tr");
-        
+
         var classeBadge = "";
-        var textoUnd = (r[6] || "").toUpperCase();
+        var textoUnd = (r[7] || "").toUpperCase(); // índice 7 = Unidade
         if(textoUnd.includes("PAR")) classeBadge = "badge badge-par";
         else if(textoUnd.includes("M")) classeBadge = "badge badge-metro";
         else classeBadge = "badge";
 
         tr.innerHTML = `
           <td>${r[0]}</td>
-          <td><b>${r[2]}</b></td>
-          <td>${r[3]}</td>
+          <td>${r[1]}</td>
+          <td><b>${r[3]}</b></td>
           <td>${r[4]}</td>
           <td>${r[5]}</td>
-          <td><span class="${classeBadge}">${r[6]}</span></td>
-          <td style="color:#2c3e50; font-weight:bold;">${r[7]}</td>
+          <td>${r[6]}</td>
+          <td><span class="${classeBadge}">${r[7]}</span></td>
+          <td style="color:#2c3e50; font-weight:bold;">${r[8]}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -548,11 +557,13 @@
       // Mostra filtros aplicados
       var filtros = [];
       var fMes = document.getElementById("selMes").value;
+      var fDataRecebimento = document.getElementById("selDataRecebimento").value;
       var fCliente = document.getElementById("selCliente").value;
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
-      if (fMes !== "Todos") filtros.push("Mês: " + fMes);
+      if (fMes !== "Todos") filtros.push("Mês Entrega: " + fMes);
+      if (fDataRecebimento !== "Todos") filtros.push("Data Recebimento: " + fDataRecebimento);
       if (fCliente !== "Todos") filtros.push("Cliente: " + fCliente);
       if (fMarca !== "Todos") filtros.push("Marca: " + fMarca);
       if (fLocal !== "Todos") filtros.push("Local: " + fLocal);
@@ -568,19 +579,20 @@
         var tr = document.createElement("tr");
 
         var classeBadge = "";
-        var textoUnd = (r[6] || "").toUpperCase();
+        var textoUnd = (r[7] || "").toUpperCase(); // índice 7 = Unidade
         if(textoUnd.includes("PAR")) classeBadge = "badge badge-par";
         else if(textoUnd.includes("M")) classeBadge = "badge badge-metro";
         else classeBadge = "badge";
 
         tr.innerHTML = `
           <td>${r[0]}</td>
-          <td><b>${r[2]}</b></td>
-          <td>${r[3]}</td>
+          <td>${r[1]}</td>
+          <td><b>${r[3]}</b></td>
           <td>${r[4]}</td>
           <td>${r[5]}</td>
-          <td><span class="${classeBadge}">${r[6]}</span></td>
-          <td style="color:#2c3e50; font-weight:bold;">${r[7]}</td>
+          <td>${r[6]}</td>
+          <td><span class="${classeBadge}">${r[7]}</span></td>
+          <td style="color:#2c3e50; font-weight:bold;">${r[8]}</td>
         `;
         tbody.appendChild(tr);
       });
