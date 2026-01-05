@@ -1,0 +1,135 @@
+import pdfplumber
+import re
+import os
+import shutil
+import requests
+import json
+from datetime import datetime
+
+# ================= CONFIGURAÇÃO =================
+URL_WEBAPP = "https://script.google.com/macros/s/AKfycbwYOBCSEwak53AA_eXIzubyi5dHSrKL2wpAeKvogzR3MHaxIsPDOuFuRaxTL3WwLHNX/exec"
+
+PASTA_ENTRADA = './pedidos' 
+PASTA_LIDOS = './pedidos/lidos'
+# =================================================
+
+def limpar_valor_monetario(texto):
+    if not texto: return 0.0
+    texto = texto.lower().replace('r$', '').strip().replace('.', '').replace(',', '.')
+    try: return float(texto)
+    except: return 0.0
+
+def identificar_unidade(texto):
+    if re.search(r'\bPAR\b', texto, re.IGNORECASE): return "Pares"
+    if re.search(r'\sM\s', texto, re.IGNORECASE): return "Metros"
+    return "Unid"
+
+def extrair_local_entrega(texto):
+    texto_upper = texto.upper()
+    if "NE-03" in texto_upper or "SEST" in texto_upper: return "Santo Estêvão (NE-03)"
+    if "NE-08" in texto_upper or "ITABERABA" in texto_upper: return "Itaberaba (NE-08)"
+    if "NE-09" in texto_upper or "VDC" in texto_upper: return "Vitória da Conquista (NE-09)"
+    matches = re.findall(r'Cidade:\s*([A-Z\s]+)', texto)
+    for c in matches:
+        if "CRUZ DAS ALMAS" not in c.upper(): return c.strip().upper()
+    return "Local Não Identificado"
+
+def processar_pdf_dass(caminho_arquivo, nome_arquivo):
+    try:
+        with pdfplumber.open(caminho_arquivo) as pdf:
+            texto_completo = ""
+            for page in pdf.pages:
+                texto_completo += page.extract_text() or ""
+            
+            if "DASS" not in texto_completo and "01287588" not in texto_completo:
+                return None
+
+            # 1. DATA DO PEDIDO (Entrega ou Emissão)
+            match_entrega = re.search(r'\d{8}.*?(\d{2}/\d{2}/\d{4})', texto_completo, re.DOTALL)
+            data_pedido = ""
+            if match_entrega:
+                data_pedido = match_entrega.group(1)
+            else:
+                match_emissao = re.search(r'Data da emissão:\s*(\d{2}/\d{2}/\d{4})', texto_completo, re.IGNORECASE)
+                data_pedido = match_emissao.group(1) if match_emissao else datetime.now().strftime("%d/%m/%Y")
+
+            # 2. DATA DE RECEBIMENTO (Cabeçalho do PDF ou Hoje)
+            # Procura por "Hora XX:XX:XX Data DD/MM/AAAA"
+            match_rec = re.search(r'Hora\s*\d{2}:\d{2}:\d{2}\s*Data\s*(\d{2}/\d{2}/\d{4})', texto_completo, re.IGNORECASE)
+            data_recebimento = match_rec.group(1) if match_rec else datetime.now().strftime("%d/%m/%Y")
+
+            dados = {
+                "data_pedido": data_pedido,
+                "data_recebimento": data_recebimento, # Nova informação
+                "arquivo": nome_arquivo,
+                "cliente": "Grupo DASS",
+                "marca": "N/D",
+                "local": "N/D",
+                "qtd": 0,
+                "unidade": "",
+                "valor": 0.0
+            }
+
+            match_marca = re.search(r'Marca:\s*([^\n]+)', texto_completo)
+            if match_marca: dados['marca'] = match_marca.group(1).strip()
+
+            match_valor = re.search(r'Total valor:\s*([\d\.,]+)', texto_completo)
+            if match_valor: dados['valor'] = limpar_valor_monetario(match_valor.group(1))
+
+            match_qtd = re.search(r'Total peças:\s*([\d\.,]+)', texto_completo)
+            if match_qtd: dados['qtd'] = limpar_valor_monetario(match_qtd.group(1))
+            
+            dados['local'] = extrair_local_entrega(texto_completo)
+            dados['unidade'] = identificar_unidade(texto_completo)
+
+            return dados
+            
+    except Exception as e:
+        print(f"Erro ao abrir {nome_arquivo}: {e}")
+        return None
+
+def mover_arquivos_processados(lista_arquivos):
+    if not os.path.exists(PASTA_LIDOS): os.makedirs(PASTA_LIDOS)
+    print(f"\n📦 Movendo arquivos processados para: {PASTA_LIDOS}")
+    for arquivo in lista_arquivos:
+        try:
+            shutil.move(os.path.join(PASTA_ENTRADA, arquivo), os.path.join(PASTA_LIDOS, arquivo))
+        except: pass
+
+def main():
+    if not os.path.exists(PASTA_ENTRADA):
+        os.makedirs(PASTA_ENTRADA)
+        print(f"Pasta criada. Coloque PDFs em '{PASTA_ENTRADA}'.")
+        return
+
+    pedidos_envio = []
+    arquivos_mover = []
+    arquivos = [f for f in os.listdir(PASTA_ENTRADA) if f.lower().endswith('.pdf')]
+    
+    print(f"📂 Processando {len(arquivos)} arquivos...")
+    print("-" * 70)
+    print(f"{'RECEBIMENTO':<12} | {'DATA PEDIDO':<12} | {'MARCA':<15} | {'VALOR'}")
+    print("-" * 70)
+
+    for arq in arquivos:
+        dados = processar_pdf_dass(os.path.join(PASTA_ENTRADA, arq), arq)
+        if dados:
+            pedidos_envio.append(dados)
+            arquivos_mover.append(arq)
+            print(f"✅ {dados['data_recebimento']:<12} | {dados['data_pedido']:<12} | {dados['marca']:<15} | R$ {dados['valor']}")
+        else:
+            print(f"⚠️ Ignorado: {arq}")
+
+    if pedidos_envio:
+        print("-" * 70)
+        try:
+            requests.post(URL_WEBAPP, json={"pedidos": pedidos_envio})
+            print(f"☁️ SUCESSO! Dados enviados.")
+            mover_arquivos_processados(arquivos_mover)
+        except Exception as e:
+            print(f"❌ Erro de conexão: {e}")
+    
+    input("\nPressione ENTER para fechar...")
+
+if __name__ == "__main__":
+    main()
