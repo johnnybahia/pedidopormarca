@@ -75,17 +75,17 @@ def processar_pdf_dass(caminho_arquivo, nome_arquivo):
             lista_pedidos_extraidos = []
 
             if not itens_encontrados:
-                # Se não achou itens individuais, cria UM pedido genérico
+                # Se não achou itens individuais pelo NCM, cria UM pedido genérico com o total
                 lista_pedidos_extraidos.append({
-                    "dataEntrega": data_recebimento,  # ✅ CORRIGIDO - camelCase
-                    "dataRecebimento": data_recebimento,  # ✅ CORRIGIDO - camelCase
+                    "dataEntrega": data_recebimento,     # ✅ camelCase - Fallback
+                    "dataRecebimento": data_recebimento, # ✅ camelCase
                     "arquivo": nome_arquivo,
                     "cliente": "Grupo DASS",
                     "marca": marca_geral,
                     "local": local_geral,
                     "qtd": qtd_total_doc,
                     "unidade": identificar_unidade(texto_completo),
-                    "valor_raw": valor_total_doc
+                    "valor_raw": valor_total_doc  # Valor numérico cru
                 })
             else:
                 # Se achou itens, cria uma linha para cada um
@@ -93,14 +93,16 @@ def processar_pdf_dass(caminho_arquivo, nome_arquivo):
                     ncm_code = item[0]
                     data_entrega = item[1]
 
-                    # Valor Total apenas na PRIMEIRA linha
+                    # LÓGICA DE VALOR:
+                    # atribuímos o Valor Total apenas à PRIMEIRA linha para não duplicar o faturamento.
+                    # Nas outras linhas colocamos 0, mas mantemos a Data de Entrega para controle logístico.
                     val_linha = valor_total_doc if i == 0 else 0.0
                     qtd_linha = qtd_total_doc if i == 0 else 0
 
                     lista_pedidos_extraidos.append({
-                        "dataEntrega": data_entrega,  # ✅ CORRIGIDO - camelCase
-                        "dataRecebimento": data_recebimento,  # ✅ CORRIGIDO - camelCase
-                        "arquivo": f"{nome_arquivo} ({i+1})",
+                        "dataEntrega": data_entrega,         # ✅ camelCase - A data específica deste item
+                        "dataRecebimento": data_recebimento, # ✅ camelCase - A data de emissão do documento
+                        "arquivo": f"{nome_arquivo} ({i+1})",  # Nome do arquivo com sufixo (1), (2)...
                         "cliente": "Grupo DASS",
                         "marca": marca_geral,
                         "local": local_geral,
