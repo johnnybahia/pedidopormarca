@@ -97,6 +97,52 @@
       display: none;
     }
     .debug-line { margin: 5px 0; }
+
+    /* Botão de Imprimir */
+    .btn-print {
+      background-color: #2980b9;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      transition: background-color 0.3s;
+      box-shadow: var(--card-shadow);
+    }
+    .btn-print:hover {
+      background-color: #1f618d;
+      transform: translateY(-2px);
+    }
+
+    /* Estilos para Impressão */
+    @media print {
+      body { background-color: white; margin: 0; padding: 20px; }
+      .header { border-bottom: 2px solid #000; }
+      .btn-print, .filters-box, .debug-console, #loading { display: none !important; }
+      .container { max-width: 100%; margin: 0; padding: 0; }
+      .kpi-row { page-break-inside: avoid; }
+      .kpi-card { box-shadow: none; border: 1px solid #ddd; }
+      .table-container { box-shadow: none; overflow: visible; }
+      table { font-size: 10px; page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      thead { display: table-header-group; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+    }
+
+    .print-only { display: none; }
+    .print-info {
+      background: #f8f9fa;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 6px;
+      border-left: 4px solid var(--primary-color);
+    }
+    .print-info h3 { margin: 0 0 10px 0; color: #2c3e50; }
+    .print-info p { margin: 5px 0; font-size: 13px; color: #555; }
   </style>
 </head>
 <body>
@@ -124,6 +170,16 @@
     </div>
 
     <div id="dashboard" style="display:none;">
+
+      <button class="btn-print" onclick="imprimirRelatorio()">🖨️ Imprimir Relatório</button>
+
+      <!-- Informações do Relatório (visível apenas na impressão) -->
+      <div class="print-only print-info" id="printInfo">
+        <h3>📋 Relatório de Pedidos por Marca</h3>
+        <p><strong>Data/Hora:</strong> <span id="printDataHora"></span></p>
+        <p><strong>Filtros Aplicados:</strong> <span id="printFiltros"></span></p>
+        <p><strong>Total de Registros:</strong> <span id="printTotalRegistros"></span></p>
+      </div>
 
       <div class="filters-box">
         <div class="filter-group">
@@ -178,8 +234,8 @@
           <tbody id="tabelaCorpo">
             </tbody>
         </table>
-        <div style="padding: 15px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid #eee;">
-          Mostrando os últimos 50 registros filtrados.
+        <div class="no-print" style="padding: 15px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid #eee;">
+          Mostrando os últimos 50 registros filtrados. Use "Imprimir Relatório" para ver todos os dados.
         </div>
       </div>
 
@@ -470,6 +526,77 @@
         opt.innerText = u;
         sel.appendChild(opt);
       });
+    }
+
+    // Função para Imprimir Relatório
+    function imprimirRelatorio() {
+      if (!linhasFiltradas || linhasFiltradas.length === 0) {
+        alert("⚠️ Nenhum dado para imprimir! Ajuste os filtros e tente novamente.");
+        return;
+      }
+
+      addDebugLog("🖨️ Preparando relatório para impressão com " + linhasFiltradas.length + " registros...");
+
+      // Salva o conteúdo atual da tabela
+      var tabelaOriginal = document.getElementById("tabelaCorpo").innerHTML;
+
+      // Preenche informações do relatório
+      var agora = new Date();
+      var dataHoraFormatada = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR');
+      document.getElementById("printDataHora").innerText = dataHoraFormatada;
+
+      // Mostra filtros aplicados
+      var filtros = [];
+      var fMes = document.getElementById("selMes").value;
+      var fCliente = document.getElementById("selCliente").value;
+      var fMarca = document.getElementById("selMarca").value;
+      var fLocal = document.getElementById("selLocal").value;
+
+      if (fMes !== "Todos") filtros.push("Mês: " + fMes);
+      if (fCliente !== "Todos") filtros.push("Cliente: " + fCliente);
+      if (fMarca !== "Todos") filtros.push("Marca: " + fMarca);
+      if (fLocal !== "Todos") filtros.push("Local: " + fLocal);
+
+      document.getElementById("printFiltros").innerText = filtros.length > 0 ? filtros.join(" | ") : "Nenhum filtro aplicado (Todos os dados)";
+      document.getElementById("printTotalRegistros").innerText = linhasFiltradas.length;
+
+      // Renderiza TODOS os dados filtrados na tabela
+      var tbody = document.getElementById("tabelaCorpo");
+      tbody.innerHTML = "";
+
+      linhasFiltradas.forEach(function(r) {
+        var tr = document.createElement("tr");
+
+        var classeBadge = "";
+        var textoUnd = (r[6] || "").toUpperCase();
+        if(textoUnd.includes("PAR")) classeBadge = "badge badge-par";
+        else if(textoUnd.includes("M")) classeBadge = "badge badge-metro";
+        else classeBadge = "badge";
+
+        tr.innerHTML = `
+          <td>${r[0]}</td>
+          <td><b>${r[2]}</b></td>
+          <td>${r[3]}</td>
+          <td>${r[4]}</td>
+          <td>${r[5]}</td>
+          <td><span class="${classeBadge}">${r[6]}</span></td>
+          <td style="color:#2c3e50; font-weight:bold;">${r[7]}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      addDebugLog("✅ Relatório preparado. Abrindo janela de impressão...", "success");
+
+      // Aguarda um pouco para renderizar e então imprime
+      setTimeout(function() {
+        window.print();
+
+        // Após imprimir, restaura a visualização com últimos 50
+        setTimeout(function() {
+          document.getElementById("tabelaCorpo").innerHTML = tabelaOriginal;
+          addDebugLog("✅ Tabela restaurada para visualização (50 registros)", "success");
+        }, 500);
+      }, 300);
     }
   </script>
 </body>
