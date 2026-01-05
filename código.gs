@@ -21,33 +21,41 @@ function doPost(e) {
     if (!sheet) {
       // Se não existir, cria e põe cabeçalho
       sheet = doc.insertSheet("Dados");
-      sheet.appendRow(["Data", "Arquivo", "Cliente", "Marca", "Local", "Qtd", "Unidade", "Valor"]);
+      sheet.appendRow(["Data Pedido", "Data Recebimento", "Arquivo", "Cliente", "Marca", "Local Entrega", "Qtd", "Unidade", "Valor (R$)"]);
     }
 
     var json = JSON.parse(e.postData.contents);
     var lista = json.pedidos; // O Python manda { "pedidos": [...] }
     var novasLinhas = [];
-    
+
     // Verificação simples de duplicidade (olhando ultimos 500 registros para ser rápido)
     var ultimaLinha = sheet.getLastRow();
     var arquivosExistentes = [];
     if (ultimaLinha > 1) {
-      // Pega apenas a coluna B (Arquivo)
-      var dadosB = sheet.getRange(Math.max(2, ultimaLinha - 500), 2, Math.min(500, ultimaLinha-1), 1).getValues();
-      arquivosExistentes = dadosB.map(function(r){ return r[0]; });
+      // Pega apenas a coluna C (Arquivo) - mudou de B para C por causa da nova coluna
+      var dadosC = sheet.getRange(Math.max(2, ultimaLinha - 500), 3, Math.min(500, ultimaLinha-1), 1).getValues();
+      arquivosExistentes = dadosC.map(function(r){ return r[0]; });
     }
 
     for (var i = 0; i < lista.length; i++) {
       var p = lista[i];
       if (arquivosExistentes.indexOf(p.arquivo) === -1) {
         novasLinhas.push([
-          p.data, p.arquivo, p.cliente, p.marca, p.local, p.qtd, p.unidade, p.valor
+          p.dataPedido || p.dataEntrega || p.data,  // Data Pedido (aceita vários formatos)
+          p.dataRecebimento || "",                   // Data Recebimento
+          p.arquivo,
+          p.cliente,
+          p.marca,
+          p.local,
+          p.qtd,
+          p.unidade,
+          p.valor
         ]);
       }
     }
 
     if (novasLinhas.length > 0) {
-      sheet.getRange(ultimaLinha + 1, 1, novasLinhas.length, 8).setValues(novasLinhas);
+      sheet.getRange(ultimaLinha + 1, 1, novasLinhas.length, 9).setValues(novasLinhas);
       return ContentService.createTextOutput(JSON.stringify({"status":"Sucesso", "msg": novasLinhas.length + " novos."})).setMimeType(ContentService.MimeType.JSON);
     } else {
       return ContentService.createTextOutput(JSON.stringify({"status":"Neutro", "msg": "Sem novidades."})).setMimeType(ContentService.MimeType.JSON);
@@ -81,20 +89,21 @@ function getDadosPlanilha() {
     var numLinhas = Math.min(1000, lastRow - 1);
     var inicio = lastRow - numLinhas + 1;
 
-    var dados = sheet.getRange(inicio, 1, numLinhas, 8).getValues();
+    var dados = sheet.getRange(inicio, 1, numLinhas, 9).getValues();
     Logger.log("✅ Recuperados " + dados.length + " registros");
 
     // Formata os dados para garantir compatibilidade
     var dadosFormatados = dados.map(function(row) {
       return [
-        formatarData(row[0]),           // Data
-        row[1] ? row[1].toString() : "", // Arquivo
-        row[2] ? row[2].toString() : "", // Cliente
-        row[3] ? row[3].toString() : "", // Marca
-        row[4] ? row[4].toString() : "", // Local
-        formatarNumero(row[5]),          // Qtd
-        row[6] ? row[6].toString() : "", // Unidade
-        formatarValor(row[7])            // Valor
+        formatarData(row[0]),            // Data Pedido
+        formatarData(row[1]),            // Data Recebimento
+        row[2] ? row[2].toString() : "", // Arquivo
+        row[3] ? row[3].toString() : "", // Cliente
+        row[4] ? row[4].toString() : "", // Marca
+        row[5] ? row[5].toString() : "", // Local Entrega
+        formatarNumero(row[6]),          // Qtd
+        row[7] ? row[7].toString() : "", // Unidade
+        formatarValor(row[8])            // Valor (R$)
       ];
     });
 
