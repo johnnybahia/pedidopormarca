@@ -1,1 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedidos por Marca - Marfim Bahia</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary-color: #d32f2f; /* Vermelho Marfim */
+      --dark-bg: #2c3e50;
+      --light-bg: #f4f6f8;
+      --card-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    body { font-family: 'Roboto', sans-serif; background-color: var(--light-bg); margin: 0; padding: 0; color: #333; }
+    
+    /* CABEÇALHO */
+    .header {
+      background-color: white;
+      padding: 15px 40px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      border-bottom: 3px solid var(--primary-color);
+    }
+    .logo-img { height: 60px; margin-right: 20px; }
+    .header-title { font-size: 24px; font-weight: 700; color: #333; }
+    .header-subtitle { font-size: 14px; color: #666; margin-top: 5px; }
 
+    /* CONTAINER PRINCIPAL */
+    .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+
+    /* CARDS DE KPI (TOTAIS) */
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .kpi-card {
+      background: white; border-radius: 8px; padding: 20px;
+      box-shadow: var(--card-shadow); border-left: 5px solid var(--primary-color);
+      transition: transform 0.2s;
+    }
+    .kpi-card:hover { transform: translateY(-3px); }
+    .kpi-title { font-size: 14px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+    .kpi-value { font-size: 28px; font-weight: 700; color: #2c3e50; margin-top: 10px; }
+    .kpi-sub { font-size: 12px; color: #999; margin-top: 5px; }
+
+    /* FILTROS (FUNIL) */
+    .filters-box {
+      background: white; padding: 20px; border-radius: 8px; box-shadow: var(--card-shadow);
+      margin-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;
+    }
+    .filter-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #555; }
+    .filter-group select {
+      width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+      background-color: #fff; font-size: 14px; cursor: pointer;
+    }
+    
+    /* TABELA */
+    .table-container { background: white; border-radius: 8px; box-shadow: var(--card-shadow); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 600px; }
+    th { background-color: #f8f9fa; color: #555; font-weight: 600; padding: 15px; text-align: left; border-bottom: 2px solid #eee; }
+    td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
+    tr:hover { background-color: #f9f9f9; }
+    
+    /* Mensagens */
+    #loading { text-align: center; padding: 50px; font-size: 18px; color: #666; font-weight: 500;}
+    .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+    .badge-par { background-color: #e8f5e9; color: #2e7d32; }
+    .badge-metro { background-color: #fff3e0; color: #ef6c00; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <img src="https://i.ibb.co/FGGjdsM/LOGO-MARFIM.jpg" alt="Logo Marfim" class="logo-img">
+    <div>
+      <div class="header-title">PEDIDO POR MARCA</div>
+      <div class="header-subtitle">MARFIM BAHIA - Painel Gerencial</div>
+    </div>
+  </div>
+
+  <div class="container">
+    
+    <div id="loading">🔄 Conectando à planilha... Aguarde.</div>
+
+    <div id="dashboard" style="display:none;">
+
+      <div class="filters-box">
+        <div class="filter-group">
+          <label>📅 Mês/Ano</label>
+          <select id="selMes" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
+        </div>
+        <div class="filter-group">
+          <label>🏢 Cliente</label>
+          <select id="selCliente" onchange="atualizarFunilCliente()"><option value="Todos">Todos</option></select>
+        </div>
+        <div class="filter-group">
+          <label>🏷️ Marca</label>
+          <select id="selMarca" onchange="aplicarFiltros()"><option value="Todos">Todas</option></select>
+        </div>
+        <div class="filter-group">
+          <label>📍 Local Entrega</label>
+          <select id="selLocal" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
+        </div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi-card" style="border-left-color: #27ae60;">
+          <div class="kpi-title">Faturamento Total</div>
+          <div class="kpi-value" id="kpiValor">R$ 0,00</div>
+          <div class="kpi-sub">Soma dos pedidos filtrados</div>
+        </div>
+        <div class="kpi-card" style="border-left-color: #2980b9;">
+          <div class="kpi-title">Total em Pares</div>
+          <div class="kpi-value" id="kpiPares">0</div>
+          <div class="kpi-sub">Unidades tipo PAR</div>
+        </div>
+        <div class="kpi-card" style="border-left-color: #e67e22;">
+          <div class="kpi-title">Total em Metros</div>
+          <div class="kpi-value" id="kpiMetros">0</div>
+          <div class="kpi-sub">Unidades tipo METRO</div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Marca</th>
+              <th>Local</th>
+              <th>Qtd</th>
+              <th>Und</th>
+              <th>Valor (R$)</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaCorpo">
+            </tbody>
+        </table>
+        <div style="padding: 15px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid #eee;">
+          Mostrando os últimos 50 registros filtrados.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    var dadosBrutos = []; // Variável global segura
+
+    // Inicia quando a página carrega
+    window.onload = function() {
+      google.script.run
+        .withFailureHandler(function(erro) {
+           console.error("Erro no Backend:", erro);
+           document.getElementById("loading").innerHTML = "❌ <b>Erro ao buscar dados:</b><br>" + erro.message;
+        })
+        .withSuccessHandler(processarDadosIniciais)
+        .getDadosPlanilha();
+    };
+
+    function processarDadosIniciais(dados) {
+      // 1. Blindagem contra Nulos
+      if (!dados) {
+        console.warn("Retorno nulo do backend. Assumindo lista vazia.");
+        dados = [];
+      }
+
+      dadosBrutos = dados;
+
+      // 2. Se vazio, avisa mas carrega a tela
+      if (dadosBrutos.length === 0) {
+         document.getElementById("loading").innerHTML = "⚠️ A planilha 'Dados' existe mas está vazia. Rode o Python primeiro.";
+         // Mesmo vazio, libera o dashboard para ver que carregou
+         setTimeout(function() {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("dashboard").style.display = "block";
+         }, 2000);
+         return;
+      }
+
+      // 3. Popula filtros iniciais com segurança
+      // Índices: 0=Data, 2=Cliente, 3=Marca, 4=Local
+      try {
+        popularSelect("selMes", 0);
+        popularSelect("selCliente", 2);
+        popularSelect("selMarca", 3);
+        popularSelect("selLocal", 4);
+      } catch (e) {
+        console.error("Erro ao popular selects:", e);
+      }
+
+      // 4. Libera a tela
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+      
+      aplicarFiltros();
+    }
+
+    // Função de Funil: Filtra Marcas baseado no Cliente
+    function atualizarFunilCliente() {
+      var clienteSelecionado = document.getElementById("selCliente").value;
+      var selectMarca = document.getElementById("selMarca");
+      
+      // Limpa e reseta
+      selectMarca.innerHTML = '<option value="Todos">Todas</option>';
+      
+      var marcasDisponiveis = new Set();
+      
+      if (dadosBrutos && dadosBrutos.length > 0) {
+        dadosBrutos.forEach(function(r) {
+          if (!r) return; // Pula linha vazia
+          // Se Cliente for Todos ou bater com a linha
+          if (clienteSelecionado === "Todos" || r[2] === clienteSelecionado) {
+            if(r[3]) marcasDisponiveis.add(r[3]);
+          }
+        });
+      }
+      
+      // Ordena e adiciona ao select
+      Array.from(marcasDisponiveis).sort().forEach(function(m) {
+        var opt = document.createElement("option");
+        opt.value = m;
+        opt.innerText = m;
+        selectMarca.appendChild(opt);
+      });
+
+      aplicarFiltros();
+    }
+
+    // Função Principal: Filtra dados e calcula Totais
+    function aplicarFiltros() {
+      var fMes = document.getElementById("selMes").value;
+      var fCliente = document.getElementById("selCliente").value;
+      var fMarca = document.getElementById("selMarca").value;
+      var fLocal = document.getElementById("selLocal").value;
+
+      var totalValor = 0;
+      var totalPares = 0;
+      var totalMetros = 0;
+      var linhasFiltradas = [];
+
+      if (dadosBrutos && dadosBrutos.length > 0) {
+        dadosBrutos.forEach(function(row) {
+          if (!row || row.length < 8) return; // Ignora linhas quebradas
+
+          var mesAno = extrairMesAno(row[0]);
+
+          // Aplica os 4 filtros
+          if (fMes !== "Todos" && mesAno !== fMes) return;
+          if (fCliente !== "Todos" && row[2] !== fCliente) return;
+          if (fMarca !== "Todos" && row[3] !== fMarca) return;
+          if (fLocal !== "Todos" && row[4] !== fLocal) return;
+
+          linhasFiltradas.push(row);
+          
+          // Soma Valor
+          totalValor += limparNumero(row[7]);
+          
+          // Soma Qtd (Separa Pares vs Metros)
+          var qtd = limparNumero(row[5]);
+          var und = (row[6] || "").toString().toUpperCase();
+          
+          if (und.includes("PAR")) {
+            totalPares += qtd;
+          } else if (und.includes("M") || und.includes("METRO")) {
+            totalMetros += qtd;
+          }
+        });
+      }
+
+      atualizarKPIs(totalValor, totalPares, totalMetros);
+      atualizarTabela(linhasFiltradas);
+    }
+
+    // Converte textos de dinheiro para número real
+    function limparNumero(valorTexto) {
+      if (!valorTexto) return 0;
+      // Remove R$, espaços
+      var v = valorTexto.toString().replace("R$", "").trim();
+      
+      // Lógica para detectar padrão brasileiro (1.000,00)
+      if (v.indexOf(',') > -1) {
+         // Remove pontos de milhar e troca vírgula por ponto decimal
+         v = v.replace(/\./g, '').replace(',', '.');
+      }
+      return parseFloat(v) || 0;
+    }
+
+    // Extrai MM/AAAA da data
+    function extrairMesAno(dataTexto) {
+      if (!dataTexto) return "Outros";
+      // Espera DD/MM/AAAA ...
+      var partes = dataTexto.split('/'); 
+      if (partes.length >= 3) {
+         // Pega mês e ano (primeiros 4 digitos da parte do ano)
+         var ano = partes[2].substring(0, 4);
+         return partes[1] + "/" + ano;
+      }
+      return "Outros";
+    }
+
+    // Atualiza os cartões coloridos
+    function atualizarKPIs(v, p, m) {
+      document.getElementById("kpiValor").innerText = v.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+      document.getElementById("kpiPares").innerText = p.toLocaleString('pt-BR');
+      document.getElementById("kpiMetros").innerText = m.toLocaleString('pt-BR');
+    }
+
+    // Desenha a tabela
+    function atualizarTabela(dados) {
+      var tbody = document.getElementById("tabelaCorpo");
+      tbody.innerHTML = "";
+      
+      if (!dados || dados.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; padding:30px; color:#999;'>Nenhum registro encontrado para estes filtros.</td></tr>";
+        return;
+      }
+
+      // Pega os ultimos 50 e inverte para mostrar mais recentes primeiro
+      var dadosRecentes = dados.slice(-50).reverse();
+
+      dadosRecentes.forEach(function(r) {
+        var tr = document.createElement("tr");
+        
+        var classeBadge = "";
+        var textoUnd = (r[6] || "").toUpperCase();
+        if(textoUnd.includes("PAR")) classeBadge = "badge badge-par";
+        else if(textoUnd.includes("M")) classeBadge = "badge badge-metro";
+        else classeBadge = "badge";
+
+        tr.innerHTML = `
+          <td>${r[0]}</td>
+          <td><b>${r[2]}</b></td>
+          <td>${r[3]}</td>
+          <td>${r[4]}</td>
+          <td>${r[5]}</td>
+          <td><span class="${classeBadge}">${r[6]}</span></td>
+          <td style="color:#2c3e50; font-weight:bold;">${r[7]}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Preenche os selects (dropdowns)
+    function popularSelect(id, indexCol) {
+      var sel = document.getElementById(id);
+      if (!sel) return;
+
+      var unicos = new Set();
+      
+      if (dadosBrutos) {
+        dadosBrutos.forEach(function(r) {
+          if (!r) return;
+          var val = r[indexCol];
+          if (indexCol === 0) val = extrairMesAno(val);
+          if (val && val.trim() !== "") unicos.add(val);
+        });
+      }
+      
+      Array.from(unicos).sort().forEach(function(u) {
+        var opt = document.createElement("option");
+        opt.value = u;
+        opt.innerText = u;
+        sel.appendChild(opt);
+      });
+    }
+  </script>
+</body>
+</html>
