@@ -67,6 +67,55 @@
     .badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
     .badge-par { background-color: #e8f5e9; color: #2e7d32; }
     .badge-metro { background-color: #fff3e0; color: #ef6c00; }
+
+    /* Spinner Animado */
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary-color);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Botão de Exportação */
+    .btn-export {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      transition: background-color 0.3s;
+      box-shadow: var(--card-shadow);
+    }
+    .btn-export:hover {
+      background-color: #b71c1c;
+      transform: translateY(-2px);
+    }
+
+    /* Console de Debug */
+    .debug-console {
+      background: #263238;
+      color: #aed581;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      margin-bottom: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+    }
+    .debug-line { margin: 5px 0; }
   </style>
 </head>
 <body>
@@ -80,10 +129,22 @@
   </div>
 
   <div class="container">
-    
-    <div id="loading">🔄 Conectando à planilha... Aguarde.</div>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>🔄 Conectando à planilha... Aguarde.</p>
+      <p style="font-size: 12px; color: #999;">Carregando dados do Google Sheets</p>
+    </div>
+
+    <!-- Console de Debug (pressione Ctrl+D para mostrar/ocultar) -->
+    <div id="debugConsole" class="debug-console">
+      <div style="color: #82b1ff; font-weight: bold; margin-bottom: 10px;">📋 DEBUG LOG:</div>
+      <div id="debugContent"></div>
+    </div>
 
     <div id="dashboard" style="display:none;">
+
+      <button class="btn-export" onclick="exportarCSV()">📥 Exportar CSV</button>
 
       <div class="filters-box">
         <div class="filter-group">
@@ -148,13 +209,39 @@
 
   <script>
     var dadosBrutos = []; // Variável global segura
+    var linhasFiltradas = []; // Para exportação CSV
+
+    // Função de Debug
+    function addDebugLog(msg, tipo = "info") {
+      var debugContent = document.getElementById("debugContent");
+      var timestamp = new Date().toLocaleTimeString();
+      var icon = tipo === "error" ? "❌" : tipo === "success" ? "✅" : "📌";
+      var linha = document.createElement("div");
+      linha.className = "debug-line";
+      linha.innerHTML = "[" + timestamp + "] " + icon + " " + msg;
+      debugContent.appendChild(linha);
+      debugContent.scrollTop = debugContent.scrollHeight;
+      console.log(msg);
+    }
+
+    // Atalho Ctrl+D para mostrar/ocultar console de debug
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        var console = document.getElementById("debugConsole");
+        console.style.display = console.style.display === 'none' ? 'block' : 'none';
+      }
+    });
 
     // Inicia quando a página carrega
     window.onload = function() {
+      addDebugLog("🚀 Iniciando carregamento de dados...");
+
       google.script.run
         .withFailureHandler(function(erro) {
+           addDebugLog("Erro no Backend: " + erro.message, "error");
            console.error("Erro no Backend:", erro);
-           document.getElementById("loading").innerHTML = "❌ <b>Erro ao buscar dados:</b><br>" + erro.message;
+           document.getElementById("loading").innerHTML = "❌ <b>Erro ao buscar dados:</b><br>" + erro.message + "<br><br><small>Pressione Ctrl+D para ver logs detalhados</small>";
         })
         .withSuccessHandler(processarDadosIniciais)
         .getDadosPlanilha();
@@ -163,15 +250,24 @@
     function processarDadosIniciais(dados) {
       // 1. Blindagem contra Nulos
       if (!dados) {
-        console.warn("Retorno nulo do backend. Assumindo lista vazia.");
+        addDebugLog("⚠️ Retorno nulo do backend. Assumindo lista vazia.", "error");
         dados = [];
+      }
+
+      addDebugLog("📦 Dados recebidos: " + (Array.isArray(dados) ? dados.length : "não é array") + " registros");
+
+      // Debug: Mostra estrutura dos primeiros registros
+      if (dados && dados.length > 0) {
+        addDebugLog("🔍 Primeira linha de exemplo: " + JSON.stringify(dados[0]), "success");
+        addDebugLog("📊 Colunas por linha: " + (dados[0] ? dados[0].length : "N/A"));
       }
 
       dadosBrutos = dados;
 
       // 2. Se vazio, avisa mas carrega a tela
       if (dadosBrutos.length === 0) {
-         document.getElementById("loading").innerHTML = "⚠️ A planilha 'Dados' existe mas está vazia. Rode o Python primeiro.";
+         addDebugLog("⚠️ Planilha vazia! Nenhum dado encontrado.", "error");
+         document.getElementById("loading").innerHTML = "⚠️ A planilha 'Dados' existe mas está vazia. Rode o Python primeiro.<br><br><small>Pressione Ctrl+D para ver logs detalhados</small>";
          // Mesmo vazio, libera o dashboard para ver que carregou
          setTimeout(function() {
             document.getElementById("loading").style.display = "none";
@@ -183,18 +279,22 @@
       // 3. Popula filtros iniciais com segurança
       // Índices: 0=Data, 2=Cliente, 3=Marca, 4=Local
       try {
+        addDebugLog("🔧 Populando filtros...");
         popularSelect("selMes", 0);
         popularSelect("selCliente", 2);
         popularSelect("selMarca", 3);
         popularSelect("selLocal", 4);
+        addDebugLog("✅ Filtros populados com sucesso", "success");
       } catch (e) {
+        addDebugLog("Erro ao popular selects: " + e.message, "error");
         console.error("Erro ao popular selects:", e);
       }
 
       // 4. Libera a tela
+      addDebugLog("✅ Carregamento concluído! Exibindo dashboard...", "success");
       document.getElementById("loading").style.display = "none";
       document.getElementById("dashboard").style.display = "block";
-      
+
       aplicarFiltros();
     }
 
@@ -236,14 +336,22 @@
       var fMarca = document.getElementById("selMarca").value;
       var fLocal = document.getElementById("selLocal").value;
 
+      addDebugLog("🔍 Aplicando filtros - Mês: " + fMes + ", Cliente: " + fCliente + ", Marca: " + fMarca + ", Local: " + fLocal);
+
       var totalValor = 0;
       var totalPares = 0;
       var totalMetros = 0;
-      var linhasFiltradas = [];
+      linhasFiltradas = []; // Atualiza variável global para exportação
 
       if (dadosBrutos && dadosBrutos.length > 0) {
+        var linhasProcessadas = 0;
+        var linhasIgnoradas = 0;
+
         dadosBrutos.forEach(function(row) {
-          if (!row || row.length < 8) return; // Ignora linhas quebradas
+          if (!row || row.length < 8) {
+            linhasIgnoradas++;
+            return; // Ignora linhas quebradas
+          }
 
           var mesAno = extrairMesAno(row[0]);
 
@@ -254,20 +362,27 @@
           if (fLocal !== "Todos" && row[4] !== fLocal) return;
 
           linhasFiltradas.push(row);
-          
+          linhasProcessadas++;
+
           // Soma Valor
-          totalValor += limparNumero(row[7]);
-          
+          var valorLimpo = limparNumero(row[7]);
+          totalValor += valorLimpo;
+
           // Soma Qtd (Separa Pares vs Metros)
           var qtd = limparNumero(row[5]);
           var und = (row[6] || "").toString().toUpperCase();
-          
+
           if (und.includes("PAR")) {
             totalPares += qtd;
           } else if (und.includes("M") || und.includes("METRO")) {
             totalMetros += qtd;
           }
         });
+
+        addDebugLog("✅ Filtro aplicado: " + linhasFiltradas.length + " registros encontrados (Total: " + dadosBrutos.length + ", Ignoradas: " + linhasIgnoradas + ")", "success");
+        addDebugLog("💰 Total calculado: R$ " + totalValor.toFixed(2) + " | Pares: " + totalPares + " | Metros: " + totalMetros);
+      } else {
+        addDebugLog("⚠️ Nenhum dado bruto disponível para filtrar", "error");
       }
 
       atualizarKPIs(totalValor, totalPares, totalMetros);
@@ -277,15 +392,26 @@
     // Converte textos de dinheiro para número real
     function limparNumero(valorTexto) {
       if (!valorTexto) return 0;
-      // Remove R$, espaços
-      var v = valorTexto.toString().replace("R$", "").trim();
-      
+
+      // Se já é número, retorna direto
+      if (typeof valorTexto === 'number') {
+        return valorTexto;
+      }
+
+      // Remove R$, espaços e outros caracteres não numéricos exceto , . -
+      var v = valorTexto.toString()
+        .replace("R$", "")
+        .replace(/\s/g, "")
+        .trim();
+
       // Lógica para detectar padrão brasileiro (1.000,00)
       if (v.indexOf(',') > -1) {
          // Remove pontos de milhar e troca vírgula por ponto decimal
          v = v.replace(/\./g, '').replace(',', '.');
       }
-      return parseFloat(v) || 0;
+
+      var resultado = parseFloat(v) || 0;
+      return resultado;
     }
 
     // Extrai MM/AAAA da data
@@ -365,6 +491,56 @@
         opt.innerText = u;
         sel.appendChild(opt);
       });
+    }
+
+    // Exporta dados filtrados para CSV
+    function exportarCSV() {
+      if (!linhasFiltradas || linhasFiltradas.length === 0) {
+        alert("⚠️ Nenhum dado para exportar! Ajuste os filtros e tente novamente.");
+        return;
+      }
+
+      addDebugLog("📥 Exportando " + linhasFiltradas.length + " registros para CSV...");
+
+      // Cabeçalho do CSV
+      var csv = "Data,Arquivo,Cliente,Marca,Local Entrega,Quantidade,Unidade,Valor\n";
+
+      // Adiciona os dados
+      linhasFiltradas.forEach(function(row) {
+        // Escapa campos que contém vírgula ou aspas
+        var linha = row.map(function(campo) {
+          var valor = (campo || "").toString();
+          // Se contém vírgula ou aspas, envolve em aspas duplas
+          if (valor.indexOf(',') > -1 || valor.indexOf('"') > -1) {
+            valor = '"' + valor.replace(/"/g, '""') + '"';
+          }
+          return valor;
+        }).join(',');
+        csv += linha + "\n";
+      });
+
+      // Cria o Blob e faz o download
+      var blob = new Blob(["\uFEFF" + csv], {type: 'text/csv;charset=utf-8;'}); // \uFEFF é BOM para UTF-8
+      var url = window.URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url;
+
+      // Nome do arquivo com data/hora
+      var agora = new Date();
+      var timestamp = agora.getFullYear() +
+                     ("0" + (agora.getMonth() + 1)).slice(-2) +
+                     ("0" + agora.getDate()).slice(-2) + "_" +
+                     ("0" + agora.getHours()).slice(-2) +
+                     ("0" + agora.getMinutes()).slice(-2);
+
+      link.download = 'pedidos_marfim_' + timestamp + '.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      addDebugLog("✅ CSV exportado com sucesso!", "success");
+      alert("✅ Arquivo CSV baixado com sucesso!\n\n" + linhasFiltradas.length + " registros exportados.");
     }
   </script>
 </body>

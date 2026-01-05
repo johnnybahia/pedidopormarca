@@ -62,14 +62,76 @@ function doPost(e) {
 
 // 3. FUNÇÃO QUE O SITE CHAMA PARA PEGAR DADOS DA PLANILHA
 function getDadosPlanilha() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Dados");
-  if (!sheet) return [];
-  
-  // Pega tudo da linha 2 até o fim
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-  
-  var dados = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
-  // Retorna array puro para o Javascript do navegador processar
-  return dados; 
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Dados");
+    if (!sheet) {
+      Logger.log("⚠️ Aba 'Dados' não encontrada");
+      return [];
+    }
+
+    var lastRow = sheet.getLastRow();
+    Logger.log("📊 Última linha: " + lastRow);
+
+    if (lastRow < 2) {
+      Logger.log("⚠️ Planilha vazia (sem dados além do cabeçalho)");
+      return [];
+    }
+
+    // Pega até 1000 registros mais recentes para otimizar
+    var numLinhas = Math.min(1000, lastRow - 1);
+    var inicio = lastRow - numLinhas + 1;
+
+    var dados = sheet.getRange(inicio, 1, numLinhas, 8).getValues();
+    Logger.log("✅ Recuperados " + dados.length + " registros");
+
+    // Formata os dados para garantir compatibilidade
+    var dadosFormatados = dados.map(function(row) {
+      return [
+        formatarData(row[0]),           // Data
+        row[1] ? row[1].toString() : "", // Arquivo
+        row[2] ? row[2].toString() : "", // Cliente
+        row[3] ? row[3].toString() : "", // Marca
+        row[4] ? row[4].toString() : "", // Local
+        formatarNumero(row[5]),          // Qtd
+        row[6] ? row[6].toString() : "", // Unidade
+        formatarValor(row[7])            // Valor
+      ];
+    });
+
+    Logger.log("✅ Dados formatados com sucesso");
+    return dadosFormatados;
+
+  } catch (erro) {
+    Logger.log("❌ Erro em getDadosPlanilha: " + erro.toString());
+    throw new Error("Erro ao buscar dados: " + erro.message);
+  }
+}
+
+// Funções auxiliares de formatação
+function formatarData(valor) {
+  if (!valor) return "";
+  if (valor instanceof Date) {
+    var dia = ("0" + valor.getDate()).slice(-2);
+    var mes = ("0" + (valor.getMonth() + 1)).slice(-2);
+    var ano = valor.getFullYear();
+    return dia + "/" + mes + "/" + ano;
+  }
+  return valor.toString();
+}
+
+function formatarNumero(valor) {
+  if (!valor) return "0";
+  if (typeof valor === 'number') {
+    return valor.toString();
+  }
+  return valor.toString();
+}
+
+function formatarValor(valor) {
+  if (!valor) return "R$ 0,00";
+  if (typeof valor === 'number') {
+    return "R$ " + valor.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  // Se já vier formatado, retorna como está
+  return valor.toString();
 }
