@@ -143,6 +143,91 @@
     }
     .print-info h3 { margin: 0 0 10px 0; color: #2c3e50; }
     .print-info p { margin: 5px 0; font-size: 13px; color: #555; }
+
+    /* SEÇÃO DE TOTAIS POR MARCA */
+    .marcas-mes-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 30px;
+    }
+    .marcas-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .marcas-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .marcas-filter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .marcas-filter label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+    }
+    .marcas-filter select {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      min-width: 150px;
+    }
+    .marcas-tabela {
+      overflow-x: auto;
+    }
+    .marcas-tabela table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .marcas-tabela th {
+      background-color: #f8f9fa;
+      color: #555;
+      font-weight: 600;
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 2px solid #eee;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .marcas-tabela td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    .marcas-tabela tr:hover {
+      background-color: #f9f9f9;
+    }
+    .marcas-tabela .marca-nome {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .marcas-tabela .valor-destaque {
+      font-weight: 700;
+      color: #27ae60;
+    }
+    .marcas-tabela .qtd-destaque {
+      font-weight: 600;
+      color: #2980b9;
+    }
+    .marcas-empty {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
@@ -205,6 +290,36 @@
         <div class="filter-group">
           <label>📍 Local Entrega</label>
           <select id="selLocal" onchange="aplicarFiltros()"><option value="Todos">Todos</option></select>
+        </div>
+      </div>
+
+      <!-- SEÇÃO: TOTAIS POR MARCA DO MÊS -->
+      <div class="marcas-mes-container">
+        <div class="marcas-header">
+          <div class="marcas-title">📊 Totais por Marca</div>
+          <div class="marcas-filter">
+            <label>🗓️ Mês de Entrega:</label>
+            <select id="selMesMarcas" onchange="atualizarTotaisPorMarca()">
+              <option value="">Carregando...</option>
+            </select>
+          </div>
+        </div>
+        <div class="marcas-tabela">
+          <table>
+            <thead>
+              <tr>
+                <th>Marca</th>
+                <th>Total em Reais</th>
+                <th>Total em Pares</th>
+                <th>Total em Metros</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaMarcas">
+              <tr>
+                <td colspan="4" class="marcas-empty">Carregando dados...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -334,6 +449,16 @@
       } catch (e) {
         addDebugLog("Erro ao popular selects: " + e.message, "error");
         console.error("Erro ao popular selects:", e);
+      }
+
+      // 3.1. Popula filtro de mês para totais por marca
+      try {
+        addDebugLog("🔧 Populando filtro de mês para totais por marca...");
+        popularSelectMesMarcas();
+        addDebugLog("✅ Filtro de mês para marcas populado com sucesso", "success");
+      } catch (e) {
+        addDebugLog("Erro ao popular filtro de mês das marcas: " + e.message, "error");
+        console.error("Erro ao popular filtro de mês das marcas:", e);
       }
 
       // 4. Libera a tela
@@ -585,6 +710,195 @@
         sel.appendChild(opt);
       });
     }
+
+    // ========================================
+    // FUNÇÕES PARA TOTAIS POR MARCA
+    // ========================================
+
+    // Popula o dropdown de meses e seleciona o mês atual
+    function popularSelectMesMarcas() {
+      var sel = document.getElementById("selMesMarcas");
+      if (!sel) return;
+
+      var mesesUnicos = new Set();
+
+      // Extrai todos os meses disponíveis nos dados
+      if (dadosBrutos && dadosBrutos.length > 0) {
+        dadosBrutos.forEach(function(r) {
+          if (!r || !r[0]) return;
+          var mesAno = extrairMesAno(r[0]); // Data de Entrega
+          if (mesAno && mesAno !== "Outros") {
+            mesesUnicos.add(mesAno);
+          }
+        });
+      }
+
+      // Limpa o select
+      sel.innerHTML = "";
+
+      // Ordena os meses (mais recentes primeiro)
+      var mesesArray = Array.from(mesesUnicos).sort(function(a, b) {
+        // Converte MM/AAAA para comparação
+        var partesA = a.split('/');
+        var partesB = b.split('/');
+        var dataA = new Date(partesA[1], partesA[0] - 1);
+        var dataB = new Date(partesB[1], partesB[0] - 1);
+        return dataB - dataA; // Ordem decrescente
+      });
+
+      // Calcula mês atual
+      var dataAtual = new Date();
+      var mesAtual = ("0" + (dataAtual.getMonth() + 1)).slice(-2) + "/" + dataAtual.getFullYear();
+
+      // Adiciona opções ao select
+      var mesAtualEncontrado = false;
+      mesesArray.forEach(function(m) {
+        var opt = document.createElement("option");
+        opt.value = m;
+        opt.innerText = m;
+        sel.appendChild(opt);
+
+        // Verifica se o mês atual está na lista
+        if (m === mesAtual) {
+          mesAtualEncontrado = true;
+        }
+      });
+
+      // Seleciona o mês atual se existir nos dados, senão seleciona o primeiro
+      if (mesAtualEncontrado) {
+        sel.value = mesAtual;
+        addDebugLog("✅ Mês atual (" + mesAtual + ") selecionado automaticamente para totais por marca");
+      } else if (mesesArray.length > 0) {
+        sel.value = mesesArray[0];
+        addDebugLog("⚠️ Mês atual não encontrado nos dados. Selecionando mês mais recente: " + mesesArray[0]);
+      }
+
+      // Atualiza a tabela de totais por marca
+      atualizarTotaisPorMarca();
+    }
+
+    // Calcula e renderiza os totais por marca do mês selecionado
+    function atualizarTotaisPorMarca() {
+      var mesSelecionado = document.getElementById("selMesMarcas").value;
+
+      if (!mesSelecionado) {
+        addDebugLog("⚠️ Nenhum mês selecionado para totais por marca");
+        return;
+      }
+
+      addDebugLog("📊 Calculando totais por marca para o mês: " + mesSelecionado);
+
+      var totaisPorMarca = {};
+
+      // Agrupa dados por marca do mês selecionado
+      if (dadosBrutos && dadosBrutos.length > 0) {
+        dadosBrutos.forEach(function(row) {
+          if (!row || row.length < 9) return;
+
+          var mesAnoEntrega = extrairMesAno(row[0]); // Data de Entrega
+
+          // Filtra apenas o mês selecionado
+          if (mesAnoEntrega !== mesSelecionado) return;
+
+          var marca = row[4] || "Sem Marca";
+          var valor = limparNumero(row[8]);
+          var qtd = limparNumero(row[6]);
+          var unidade = (row[7] || "").toString().toUpperCase();
+
+          // Ignora linhas com quantidade 0
+          if (qtd === 0) return;
+
+          // Inicializa totais da marca se não existir
+          if (!totaisPorMarca[marca]) {
+            totaisPorMarca[marca] = {
+              reais: 0,
+              pares: 0,
+              metros: 0
+            };
+          }
+
+          // Acumula valores
+          totaisPorMarca[marca].reais += valor;
+
+          if (unidade.includes("PAR")) {
+            totaisPorMarca[marca].pares += qtd;
+          } else if (unidade.includes("M") || unidade.includes("METRO")) {
+            totaisPorMarca[marca].metros += qtd;
+          }
+        });
+      }
+
+      addDebugLog("✅ Encontradas " + Object.keys(totaisPorMarca).length + " marcas no mês " + mesSelecionado);
+
+      // Renderiza a tabela
+      renderizarTabelaMarcas(totaisPorMarca);
+    }
+
+    // Renderiza a tabela de totais por marca
+    function renderizarTabelaMarcas(totaisPorMarca) {
+      var tbody = document.getElementById("tabelaMarcas");
+
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+
+      // Verifica se há dados
+      if (!totaisPorMarca || Object.keys(totaisPorMarca).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="marcas-empty">Nenhuma marca encontrada para este mês.</td></tr>';
+        return;
+      }
+
+      // Converte objeto para array e ordena por valor (maior para menor)
+      var marcasArray = Object.keys(totaisPorMarca).map(function(marca) {
+        return {
+          nome: marca,
+          dados: totaisPorMarca[marca]
+        };
+      }).sort(function(a, b) {
+        return b.dados.reais - a.dados.reais; // Ordena por valor decrescente
+      });
+
+      // Calcula totais gerais
+      var totalGeralReais = 0;
+      var totalGeralPares = 0;
+      var totalGeralMetros = 0;
+
+      // Renderiza cada marca
+      marcasArray.forEach(function(item) {
+        var tr = document.createElement("tr");
+
+        totalGeralReais += item.dados.reais;
+        totalGeralPares += item.dados.pares;
+        totalGeralMetros += item.dados.metros;
+
+        tr.innerHTML = `
+          <td class="marca-nome">${item.nome}</td>
+          <td class="valor-destaque">${item.dados.reais.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+          <td class="qtd-destaque">${item.dados.pares.toLocaleString('pt-BR')}</td>
+          <td class="qtd-destaque">${item.dados.metros.toLocaleString('pt-BR')}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Adiciona linha de TOTAL
+      var trTotal = document.createElement("tr");
+      trTotal.style.backgroundColor = "#f0f0f0";
+      trTotal.style.fontWeight = "bold";
+      trTotal.style.borderTop = "2px solid #ddd";
+      trTotal.innerHTML = `
+        <td style="color: #2c3e50;">TOTAL GERAL</td>
+        <td class="valor-destaque">${totalGeralReais.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+        <td class="qtd-destaque">${totalGeralPares.toLocaleString('pt-BR')}</td>
+        <td class="qtd-destaque">${totalGeralMetros.toLocaleString('pt-BR')}</td>
+      `;
+      tbody.appendChild(trTotal);
+
+      addDebugLog("✅ Tabela de marcas renderizada com " + marcasArray.length + " marcas", "success");
+    }
+
+    // ========================================
+    // FIM DAS FUNÇÕES DE TOTAIS POR MARCA
+    // ========================================
 
     // Função para Imprimir Relatório
     function imprimirRelatorio() {
