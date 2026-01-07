@@ -184,6 +184,20 @@
       cursor: pointer;
       min-width: 150px;
     }
+    .dias-uteis-info {
+      font-size: 13px;
+      color: #555;
+      font-weight: 600;
+      padding: 8px 12px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #e0e0e0;
+    }
+    .dias-uteis-numero {
+      color: #2980b9;
+      font-weight: 700;
+      font-size: 14px;
+    }
     .marcas-tabela {
       overflow-x: auto;
     }
@@ -302,6 +316,9 @@
             <select id="selMesMarcas" onchange="atualizarTotaisPorMarca()">
               <option value="">Carregando...</option>
             </select>
+            <span class="dias-uteis-info">
+              📅 Dias Úteis: <span id="diasUteisDisplay" class="dias-uteis-numero">--</span>
+            </span>
           </div>
         </div>
         <div class="marcas-tabela">
@@ -311,12 +328,13 @@
                 <th>Marca</th>
                 <th>Total em Reais</th>
                 <th>Total em Pares</th>
+                <th>Pares/Dia Útil</th>
                 <th>Total em Metros</th>
               </tr>
             </thead>
             <tbody id="tabelaMarcas">
               <tr>
-                <td colspan="4" class="marcas-empty">Carregando dados...</td>
+                <td colspan="5" class="marcas-empty">Carregando dados...</td>
               </tr>
             </tbody>
           </table>
@@ -715,6 +733,35 @@
     // FUNÇÕES PARA TOTAIS POR MARCA
     // ========================================
 
+    // Calcula o número de dias úteis de um mês (excluindo sábados e domingos)
+    function calcularDiasUteis(mesAno) {
+      // Espera formato MM/AAAA
+      var partes = mesAno.split('/');
+      if (partes.length !== 2) return 0;
+
+      var mes = parseInt(partes[0]) - 1; // JavaScript usa 0-11 para meses
+      var ano = parseInt(partes[1]);
+
+      // Primeiro e último dia do mês
+      var primeiroDia = new Date(ano, mes, 1);
+      var ultimoDia = new Date(ano, mes + 1, 0); // Dia 0 do próximo mês = último dia do mês atual
+
+      var diasUteis = 0;
+
+      // Itera por todos os dias do mês
+      for (var dia = 1; dia <= ultimoDia.getDate(); dia++) {
+        var data = new Date(ano, mes, dia);
+        var diaSemana = data.getDay(); // 0 = Domingo, 6 = Sábado
+
+        // Se não for sábado (6) nem domingo (0), é dia útil
+        if (diaSemana !== 0 && diaSemana !== 6) {
+          diasUteis++;
+        }
+      }
+
+      return diasUteis;
+    }
+
     // Popula o dropdown de meses e seleciona o mês atual
     function popularSelectMesMarcas() {
       var sel = document.getElementById("selMesMarcas");
@@ -844,8 +891,22 @@
 
       // Verifica se há dados
       if (!totaisPorMarca || Object.keys(totaisPorMarca).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="marcas-empty">Nenhuma marca encontrada para este mês.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="marcas-empty">Nenhuma marca encontrada para este mês.</td></tr>';
         return;
+      }
+
+      // Calcula dias úteis do mês selecionado
+      var mesSelecionado = document.getElementById("selMesMarcas").value;
+      var diasUteis = calcularDiasUteis(mesSelecionado);
+
+      // Atualiza o display de dias úteis no cabeçalho
+      var diasUteisDisplay = document.getElementById("diasUteisDisplay");
+      if (diasUteisDisplay) {
+        diasUteisDisplay.innerText = diasUteis > 0 ? diasUteis : "--";
+      }
+
+      if (diasUteis > 0) {
+        addDebugLog("📅 Mês " + mesSelecionado + " tem " + diasUteis + " dias úteis");
       }
 
       // Converte objeto para array e ordena por valor (maior para menor)
@@ -871,14 +932,23 @@
         totalGeralPares += item.dados.pares;
         totalGeralMetros += item.dados.metros;
 
+        // Calcula média de pares por dia útil
+        var paresPorDia = diasUteis > 0 ? (item.dados.pares / diasUteis) : 0;
+        var paresPorDiaFormatado = paresPorDia.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+
         tr.innerHTML = `
           <td class="marca-nome">${item.nome}</td>
           <td class="valor-destaque">${item.dados.reais.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
           <td class="qtd-destaque">${item.dados.pares.toLocaleString('pt-BR')}</td>
+          <td class="qtd-destaque" style="color: #8e44ad;">${paresPorDiaFormatado}</td>
           <td class="qtd-destaque">${item.dados.metros.toLocaleString('pt-BR')}</td>
         `;
         tbody.appendChild(tr);
       });
+
+      // Calcula média geral de pares por dia útil
+      var mediaParesPorDia = diasUteis > 0 ? (totalGeralPares / diasUteis) : 0;
+      var mediaParesPorDiaFormatado = mediaParesPorDia.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
 
       // Adiciona linha de TOTAL
       var trTotal = document.createElement("tr");
@@ -889,11 +959,12 @@
         <td style="color: #2c3e50;">TOTAL GERAL</td>
         <td class="valor-destaque">${totalGeralReais.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
         <td class="qtd-destaque">${totalGeralPares.toLocaleString('pt-BR')}</td>
+        <td class="qtd-destaque" style="color: #8e44ad;">${mediaParesPorDiaFormatado}</td>
         <td class="qtd-destaque">${totalGeralMetros.toLocaleString('pt-BR')}</td>
       `;
       tbody.appendChild(trTotal);
 
-      addDebugLog("✅ Tabela de marcas renderizada com " + marcasArray.length + " marcas", "success");
+      addDebugLog("✅ Tabela de marcas renderizada com " + marcasArray.length + " marcas | Média geral: " + mediaParesPorDiaFormatado + " pares/dia útil", "success");
     }
 
     // ========================================
